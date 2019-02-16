@@ -57,8 +57,8 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         
         self.addloginButton()
-        self.configureStatus()
-        self.configureInfo()
+        self.setupStatus()
+        self.setupInfoLabel()
         
         username.delegate = self
         password.delegate = self
@@ -66,24 +66,8 @@ class ViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        
-        let flyRightAnimation = CABasicAnimation.makeHorizontalAnimation(from: -view.bounds.width/2, to: view.bounds.width/2)
-        flyRightAnimation.delegate = self
-        flyRightAnimation.setValue("heading", forKey: "name")
-        flyRightAnimation.setValue(heading.layer, forKey: "layer")
-        heading.layer.add(flyRightAnimation, forKey: "layer")
-        
-        flyRightAnimation.beginTime = CACurrentMediaTime() + 0.3
-        flyRightAnimation.setValue("username", forKey: "name")
-        flyRightAnimation.setValue(username.layer, forKey: "layer")
-        username.layer.add(flyRightAnimation, forKey: "layer")
-        
-        flyRightAnimation.beginTime = CACurrentMediaTime() + 0.4
-        flyRightAnimation.setValue("password", forKey: "name")
-        flyRightAnimation.setValue(password.layer, forKey: "layer")
-        password.layer.add(flyRightAnimation, forKey: "layer")
-        
-        let opacityAnimation = CABasicAnimation.makeOpacityAnumation()
+        animateForm()
+        let opacityAnimation = CABasicAnimation.makeOpacity()
         opacityAnimation.beginTime = CACurrentMediaTime() + 0.5
         cloud1.layer.add(opacityAnimation, forKey: nil)
         opacityAnimation.beginTime = CACurrentMediaTime() + 0.7
@@ -92,29 +76,65 @@ class ViewController: UIViewController {
         cloud3.layer.add(opacityAnimation, forKey: nil)
         opacityAnimation.beginTime = CACurrentMediaTime() + 1.1
         cloud4.layer.add(opacityAnimation, forKey: nil)
-        loginButton.center.y += 30
-        loginButton.alpha = 0
+    }
+    
+    private func animateForm() {
+        let groupAnimation = CAAnimationGroup()
+        let fadeIn = CABasicAnimation.makeOpacity(from: 0.25, to: 1)
+        let flyRight = CABasicAnimation.makeHorizontalMove(from: -view.bounds.width/2, to: view.bounds.width/2)
+        flyRight.toValue = view.bounds.width/2
+        groupAnimation.animations = [flyRight, fadeIn]
+        groupAnimation.delegate = self
+        groupAnimation.duration = 1.5
+        groupAnimation.fillMode = kCAFillModeBackwards
+        add(animation: groupAnimation, to: heading.layer, with: "heading")
+        groupAnimation.beginTime = CACurrentMediaTime() + 0.3
+        add(animation: groupAnimation, to: username.layer, with: "username")
+        groupAnimation.beginTime = CACurrentMediaTime() + 0.4
+        add(animation: groupAnimation, to: password.layer, with: "password")
+    }
+    
+    private func add(animation: CAAnimation, to layer: CALayer, with name: String) {
+        animation.setValue(name, forKey: "name")
+        animation.setValue(layer, forKey: "layer")
+        layer.add(animation, forKey: nil)
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         
-        UIView.animate(withDuration: 0.5, delay: 0.5, usingSpringWithDamping: 0.5, initialSpringVelocity: 0.0, options: [], animations: {
-            self.loginButton.center.y -= 30
-            self.loginButton.alpha = 1.0
-        }, completion: nil)
-        
         moveCloud(cloud1.layer)
         moveCloud(cloud2.layer)
         moveCloud(cloud3.layer)
         moveCloud(cloud4.layer)
-        
-        let labelAnimation = CABasicAnimation.makeHorizontalAnimation(from: info.layer.position.x + view.frame.size.width,
+        moveInfoWithFadeIn()
+        appearLoginWithRotationAndScaling()
+    }
+    
+    func moveInfoWithFadeIn() {
+        let flyLeft = CABasicAnimation.makeHorizontalMove(from: info.layer.position.x + view.frame.size.width,
                                                                       to: info.layer.position.x,
                                                                       duration: 5.0)
-        info.layer.add(labelAnimation, forKey: "infoappear")
-        let fadeAnimation = CABasicAnimation.makeOpacityAnumation(from: 0.2, to: 1, duration: 4.5)
-        info.layer.add(fadeAnimation, forKey: "fadein")
+        flyLeft.repeatCount = 2.5
+        flyLeft.autoreverses = true
+        info.layer.add(flyLeft, forKey: "infoappear")
+        let fade = CABasicAnimation.makeOpacity(from: 0.2, to: 1, duration: 4.5)
+        info.layer.add(fade, forKey: "fadein")
+    }
+    
+    func appearLoginWithRotationAndScaling() {
+        let groupAnimation = CAAnimationGroup()
+        groupAnimation.beginTime = CACurrentMediaTime() + 0.5
+        groupAnimation.duration = 0.5
+        groupAnimation.fillMode = kCAFillModeBackwards
+        groupAnimation.timingFunction = CAMediaTimingFunction(name: kCAMediaTimingFunctionEaseIn)
+        
+        let scaleDown = CABasicAnimation.makeScale(from: 3.5, to: 1)
+        let rotate = CABasicAnimation.makeRotation(from: .pi/4.0, to: 0)
+        let fade = CABasicAnimation.makeOpacity(from: 0, to: 1)
+        
+        groupAnimation.animations = [scaleDown, rotate, fade]
+        loginButton.layer.add(groupAnimation, forKey: nil)
     }
     
     var cloudSpeed: CGFloat = 60
@@ -122,7 +142,7 @@ class ViewController: UIViewController {
         let speed = cloudSpeed / view.frame.size.width
         let duration = (view.frame.size.width - layer.frame.origin.x) * speed
         
-        let animation = CABasicAnimation.makeHorizontalAnimation(to: self.view.bounds.width + layer.bounds.width/2,
+        let animation = CABasicAnimation.makeHorizontalMove(to: self.view.bounds.width + layer.bounds.width/2,
                                                                  duration: CFTimeInterval(duration))
         animation.delegate = self
         animation.setValue("cloud", forKey: "name")
@@ -130,7 +150,7 @@ class ViewController: UIViewController {
         layer.add(animation, forKey: nil)
     }
     
-    private func configureInfo() {
+    private func setupInfoLabel() {
         info.frame = CGRect(x: 0, y: loginButton.center.y + 60, width: view.frame.size.width, height: 30)
         info.backgroundColor = UIColor.clear
         info.font = UIFont(name: "HelveticaNeue", size: 12)
@@ -152,7 +172,7 @@ class ViewController: UIViewController {
         loginButton.addSubview(spinner)
     }
     
-    private func configureStatus(){
+    private func setupStatus(){
         status.isHidden = true
         status.center = loginButton.center
         statusPosition = status.center
@@ -275,7 +295,7 @@ extension ViewController: UITextFieldDelegate {
 }
 
 extension CABasicAnimation {
-    static func makeHorizontalAnimation(from: CGFloat? = nil, to: CGFloat, duration: CFTimeInterval = 0.5)->CABasicAnimation {
+    static func makeHorizontalMove(from: CGFloat? = nil, to: CGFloat, duration: CFTimeInterval = 0.5) -> CABasicAnimation {
         let basicAnimation = CABasicAnimation(keyPath: "position.x")
         if let from = from {
             basicAnimation.fromValue = from
@@ -287,13 +307,27 @@ extension CABasicAnimation {
         return basicAnimation
     }
     
-    static func makeOpacityAnumation(from: CGFloat = 0, to: CGFloat = 1, duration: CFTimeInterval = 0.5)->CABasicAnimation {
+    static func makeOpacity(from: CGFloat = 0, to: CGFloat = 1, duration: CFTimeInterval = 0.5) -> CABasicAnimation {
         let opacityAnimation = CABasicAnimation(keyPath: "opacity")
         opacityAnimation.fromValue = from
         opacityAnimation.toValue = to
         opacityAnimation.duration = duration
         opacityAnimation.fillMode = kCAFillModeBoth
         return opacityAnimation
+    }
+    
+    static func makeScale(from: CGFloat, to: CGFloat) -> CABasicAnimation {
+        let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
+        scaleAnimation.fromValue = from
+        scaleAnimation.toValue = to
+        return scaleAnimation
+    }
+    
+    static func makeRotation(from: CGFloat, to: CGFloat) -> CABasicAnimation {
+        let rotateAnimation = CABasicAnimation(keyPath: "transform.rotation")
+        rotateAnimation.fromValue = from
+        rotateAnimation.toValue = to
+        return rotateAnimation
     }
 }
 
