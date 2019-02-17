@@ -204,8 +204,10 @@ class ViewController: UIViewController {
         }, completion: nil)
         
         let tintColor = UIColor(red: 0.85, green: 0.83, blue: 0.45, alpha: 1.0)
-        loginButton.layer.changeBackgroundColor(to: tintColor)
-        loginButton.layer.roundCorners(to: 25.0)
+    //    loginButton.layer.changeBackgroundColor(to: tintColor)
+        loginButton.layer.changeBackgroundColorBySpring(to: tintColor)
+     //   loginButton.layer.roundCorners(to: 25.0)
+        loginButton.layer.roundCornersBySpring(to: 25.0)
     }
     
     func showMessage(index: Int) {
@@ -247,8 +249,10 @@ class ViewController: UIViewController {
             self.loginButton.center.y -= 60
         }, completion: { _ in
             let loginButtonLayer = self.loginButton.layer
-            loginButtonLayer.changeBackgroundColor(to: UIColor(red: 0.63, green: 0.84, blue: 0.35, alpha: 1.0))
-            loginButtonLayer.roundCorners(to: 10.0)
+       //     loginButtonLayer.changeBackgroundColor(to: UIColor(red: 0.63, green: 0.84, blue: 0.35, alpha: 1.0))
+            loginButtonLayer.changeBackgroundColorBySpring(to: UIColor(red: 0.63, green: 0.84, blue: 0.35, alpha: 1.0))
+           // loginButtonLayer.roundCorners(to: 10.0)
+            loginButtonLayer.roundCornersBySpring(to: 10.0)
         })
     }
     
@@ -272,10 +276,7 @@ extension ViewController: CAAnimationDelegate {
         if anim.value(forKey: "name") as? String == "username" {
             let layer = anim.value(forKey: "layer") as? CALayer
             anim.setValue(nil, forKey: "layer")
-            let pulse = CABasicAnimation(keyPath: "transform.scale")
-            pulse.fromValue = 1.25
-            pulse.toValue = 1.0
-            pulse.duration = 0.25
+            let pulse = CASpringAnimation.makePulse(initialScale: 1.25, endScale: 1, damping: 7.5)
             layer?.add(pulse, forKey: nil)
         }
         
@@ -291,6 +292,27 @@ extension ViewController: CAAnimationDelegate {
 extension ViewController: UITextFieldDelegate {
     func textFieldDidBeginEditing(_ textField: UITextField) {
         info.layer.removeAnimation(forKey: "infoappear")
+    }
+    
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        guard let text = textField.text else { return }
+        
+        if text.count < 5 {
+            let jump = CASpringAnimation.makeJump(from: textField.layer.position.y + 1,
+                                                  to: textField.layer.position.y,
+                                                  initialVelocity: 100,
+                                                  mass: 10,
+                                                  stiffness: 1500,
+                                                  damping: 50)
+            textField.layer.add(jump, forKey: nil)
+            textField.layer.borderWidth = 3
+            textField.layer.borderColor = UIColor.clear.cgColor
+            let flash = CASpringAnimation.makeFlash(startColor: UIColor(red: 1.0, green: 0.27, blue: 0.0, alpha: 1.0),
+                                                    endColor: UIColor.white,
+                                                    damping: 7,
+                                                    stiffness: 200)
+            textField.layer.add(flash, forKey: nil)
+        }
     }
 }
 
@@ -331,6 +353,39 @@ extension CABasicAnimation {
     }
 }
 
+extension CASpringAnimation {
+    static func makePulse(initialScale: CGFloat, endScale: CGFloat, damping: CGFloat) -> CASpringAnimation {
+        let pulse = CASpringAnimation(keyPath: "transform.scale")
+        pulse.fromValue = initialScale
+        pulse.toValue = endScale
+        pulse.damping = damping
+        pulse.duration = pulse.settlingDuration
+        return pulse
+    }
+    
+    static func makeJump(from: CGFloat, to: CGFloat, initialVelocity: CGFloat = 0, mass: CGFloat = 1, stiffness: CGFloat = 100, damping: CGFloat = 10) -> CASpringAnimation {
+        let jump = CASpringAnimation(keyPath: "position.y")
+        jump.fromValue = from
+        jump.toValue = to
+        jump.duration = jump.settlingDuration
+        jump.initialVelocity = initialVelocity
+        jump.mass = mass
+        jump.stiffness = stiffness
+        jump.damping = damping
+        return jump
+    }
+    
+    static func makeFlash(startColor: UIColor, endColor: UIColor, damping: CGFloat, stiffness: CGFloat) -> CASpringAnimation {
+        let flash = CASpringAnimation(keyPath: "borderColor")
+        flash.damping = damping
+        flash.stiffness = stiffness
+        flash.fromValue = startColor.cgColor
+        flash.toValue = endColor.cgColor
+        flash.duration = flash.settlingDuration
+        return flash
+    }
+}
+
 extension CALayer {
     func changeBackgroundColor(to color: UIColor) {
         let basicAnimation = CABasicAnimation(keyPath: "backgroundColor")
@@ -341,12 +396,34 @@ extension CALayer {
         self.backgroundColor = color.cgColor
     }
     
+    func changeBackgroundColorBySpring(to color: UIColor, damping: CGFloat = 10, stiffness: CGFloat = 100) {
+        let changeBackground = CASpringAnimation(keyPath: "backgroundColor")
+        changeBackground.damping = damping
+        changeBackground.stiffness = stiffness
+        changeBackground.fromValue = self.backgroundColor
+        changeBackground.toValue = color.cgColor
+        changeBackground.duration = changeBackground.settlingDuration
+        self.add(changeBackground, forKey: nil)
+        self.backgroundColor = color.cgColor
+    }
+    
     func roundCorners(to radius: CGFloat) {
         let basicAnimation = CABasicAnimation(keyPath: "cornerRadius")
         basicAnimation.fromValue = self.cornerRadius
         basicAnimation.toValue = radius
         basicAnimation.duration = 0.33
         self.add(basicAnimation, forKey: nil)
+        self.cornerRadius = radius
+    }
+    
+    func roundCornersBySpring(to radius: CGFloat, damping: CGFloat = 100, stiffness: CGFloat = 100) {
+        let roundCorners = CASpringAnimation(keyPath: "cornerRadius")
+        roundCorners.damping = damping
+        roundCorners.stiffness = stiffness
+        roundCorners.fromValue = self.cornerRadius
+        roundCorners.toValue = radius
+        roundCorners.duration = roundCorners.settlingDuration
+        self.add(roundCorners, forKey: nil)
         self.cornerRadius = radius
     }
 }
