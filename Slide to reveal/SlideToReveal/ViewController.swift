@@ -45,16 +45,16 @@ class ViewController: UIViewController {
     UIView.animate(withDuration: 0.33, delay: 0.0,
       animations: {
         self.time.center.y -= 200.0
-        self.slideView.center.y += 200.0
+        self.slideView.center.y += 300.0
         image.center.x -= self.view.bounds.size.width
       },
       completion: nil
     )
     
-    UIView.animate(withDuration: 0.33, delay: 1.0,
+    UIView.animate(withDuration: 0.33, delay: 3.0,
       animations: {
         self.time.center.y += 200.0
-        self.slideView.center.y -= 200.0
+        self.slideView.center.y -= 300.0
         image.center.x += self.view.bounds.size.width
       },
       completion: {_ in
