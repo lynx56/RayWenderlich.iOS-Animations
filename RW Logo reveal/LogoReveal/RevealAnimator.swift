@@ -8,16 +8,24 @@
 
 import UIKit
 
-class RevealAnimator: NSObject, UIViewControllerAnimatedTransitioning {
+class RevealAnimator: UIPercentDrivenInteractiveTransition, UIViewControllerAnimatedTransitioning {
     let animationDuartion: TimeInterval = 2
     var operation: UINavigationControllerOperation = .push
     weak var storedContext: UIViewControllerContextTransitioning?
+    var interactive = false
+    private var pausedTime: CFTimeInterval = 0
     
     func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
         return animationDuartion
     }
     
     func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
+        if interactive {
+            let transitionLayer = transitionContext.containerView.layer
+            pausedTime = transitionLayer.convertTime(CACurrentMediaTime(), from: nil)
+            transitionLayer.speed = 0
+            transitionLayer.timeOffset = pausedTime
+        }
         switch operation {
         case .push:
             push(using: transitionContext)
@@ -26,6 +34,49 @@ class RevealAnimator: NSObject, UIViewControllerAnimatedTransitioning {
         case .none:
             assertionFailure("wtf?")
         }
+    }
+    
+    private let _totalPath: CGFloat = 200
+    func handlePan(_ recognizer: UIPanGestureRecognizer) {
+        guard let view = recognizer.view?.superview
+            else { assertionFailure("Invalid view"); return }
+        
+        let translation = recognizer.translation(in: view)
+        var progress: CGFloat = abs(translation.x / _totalPath)
+        progress = min(max(progress, 0.01), 0.99)
+        
+        switch recognizer.state {
+        case .changed:
+            update(progress)
+        case .cancelled, .ended:
+            progress < 0.5 ? cancel() : finish()
+            interactive = false
+        default:
+            break
+        }
+    }
+    
+    override func cancel() {
+        restart(forFinishing: false)
+        super.cancel()
+    }
+    
+    override func finish() {
+        restart(forFinishing: true)
+        super.finish()
+    }
+    
+    override func update(_ percentComplete: CGFloat) {
+        super.update(percentComplete)
+        let animationProgress = TimeInterval(animationDuartion) * TimeInterval(percentComplete)
+        storedContext?.containerView.layer.timeOffset = pausedTime + animationProgress
+    }
+    
+    // fix ios 10 bug for layer animations
+    private func restart(forFinishing: Bool) {
+        let transitionLayer = storedContext?.containerView.layer
+        transitionLayer?.beginTime = CACurrentMediaTime()
+        transitionLayer?.speed = forFinishing ? 1 : -1
     }
     
     private func push(using transitionContext: UIViewControllerContextTransitioning) {
