@@ -49,11 +49,14 @@ class LockScreenViewController: UIViewController {
   
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    dateTopConstraint.constant -= 100
+    view.layoutIfNeeded()
   }
   
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     AnimatorFactory.scaleUp(view: tableView).startAnimation()
+    AnimatorFactory.animateConstraint(view: view, constraint: dateTopConstraint, by: 100).startAnimation()
   }
   
   override func viewWillLayoutSubviews() {
@@ -71,8 +74,19 @@ class LockScreenViewController: UIViewController {
   }
   
   func toggleBlur(_ blurred: Bool) {
-    UIViewPropertyAnimator(duration: 0.55, curve: .easeOut, animations: blurAnimations(blurred))
+    UIViewPropertyAnimator(duration: 0.55,
+                           controlPoint1: CGPoint(x: 0.57, y: -0.4),
+                           controlPoint2: CGPoint(x: 0.96, y: 0.87),
+                           animations: blurAnimations(blurred))
       .startAnimation()
+ 
+    /*
+    // Spring
+    let spring = UISpringTimingParameters(mass: 10, stiffness: 5, damping: 30, initialVelocity: CGVector(dx: 1, dy: 0.2))
+    let animator = UIViewPropertyAnimator(duration: 0.55, timingParameters: spring)
+    animator.addAnimations(blurAnimations(blurred))
+    animator.startAnimation()
+     */
   }
   
   func blurAnimations(_ blurred: Bool) -> () -> Void {
@@ -84,8 +98,10 @@ class LockScreenViewController: UIViewController {
   }
 }
 
+// MARK : - WidgetsOwnerProtocol
 extension LockScreenViewController: WidgetsOwnerProtocol { }
 
+// MARK : - UITableViewDataSource
 extension LockScreenViewController: UITableViewDataSource {
   
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -108,6 +124,7 @@ extension LockScreenViewController: UITableViewDataSource {
   }
 }
 
+// MARK : - UISearchBarDelegate
 extension LockScreenViewController: UISearchBarDelegate {
   func searchBarTextDidBeginEditing(_ searchBar: UISearchBar) {
     toggleBlur(true)
@@ -122,54 +139,5 @@ extension LockScreenViewController: UISearchBarDelegate {
     if searchText.isEmpty {
       searchBar.resignFirstResponder()
     }
-  }
-}
-
-
-class AnimatorFactory {
-  static func scaleUp(view: UIView) -> UIViewPropertyAnimator {
-    let scale = UIViewPropertyAnimator(duration: 0.33, curve: .easeIn)
-    scale.addAnimations {
-      view.alpha = 1
-    }
-    scale.addAnimations({
-      view.transform = .identity
-    }, delayFactor: 0.33)
-    
-    scale.addCompletion { _ in
-      print("ready")
-    }
-    return scale
-  }
-  
-  @discardableResult
-  static func jiggle(view: UIView) -> UIViewPropertyAnimator {
-    return UIViewPropertyAnimator.runningPropertyAnimator(
-      withDuration: 0.33, delay: 0,
-      options: .curveLinear,
-      animations: {
-        UIView.animateKeyframes(withDuration: 1, delay: 0, animations: {
-          UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.25, animations: {
-            view.transform = CGAffineTransform(rotationAngle: -.pi/8)
-          })
-          UIView.addKeyframe(withRelativeStartTime: 0.25, relativeDuration: 0.75, animations: {
-            view.transform = CGAffineTransform(rotationAngle: .pi/8)
-          })
-          UIView.addKeyframe(withRelativeStartTime: 0.75, relativeDuration: 1, animations: {
-            view.transform = .identity
-          })
-        }, completion: nil)
-    })
-  }
-  
-  @discardableResult
-  static func fade(blurView: UIView, visible: Bool) -> UIViewPropertyAnimator {
-    return UIViewPropertyAnimator.runningPropertyAnimator(withDuration: 0.5,
-                                                          delay: 0.1,
-                                                          options: [.curveEaseOut],
-                                                          animations: {
-                                                            blurView.alpha = visible ? 1 : 0
-    },
-                                                          completion: nil)
   }
 }
