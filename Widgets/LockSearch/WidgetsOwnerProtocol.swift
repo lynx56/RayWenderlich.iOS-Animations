@@ -30,10 +30,3 @@ protocol WidgetsOwnerProtocol {
   func finishPreview()
   func cancelPreview()
 }
-
-extension WidgetsOwnerProtocol {
-  func startPreview(for forView: UIView) { }
-  func updatePreview(percent: CGFloat) { }
-  func finishPreview() { }
-  func cancelPreview() { }
-}

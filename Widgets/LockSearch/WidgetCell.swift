@@ -53,7 +53,7 @@ class WidgetCell: UITableViewCell {
     
     let textTransition = {
       UIView.transition(with: sender, duration: 0.25, options: .transitionFlipFromBottom, animations: {
-        sender.setTitle(self.showsMore ? "Show Less" : "Show More", for: .normal)
+        sender.setTitle(self.showsMore ? "Show More" : "Show Less", for: .normal)
       }, completion: nil)
     }
     

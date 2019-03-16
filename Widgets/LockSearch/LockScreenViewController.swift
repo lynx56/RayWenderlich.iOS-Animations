@@ -33,22 +33,33 @@ class LockScreenViewController: UIViewController {
   let blurView = UIVisualEffectView(effect: nil)
   
   var settingsController: SettingsViewController!
+  private var _startFrame: CGRect?
+  private var _previewView: UIView?
+  private var _previewAnimator: UIViewPropertyAnimator?
+  private let _previewEffectView = IconEffectView(blur: .extraLight)
+  private let _presentTransition = PresentTransition()
+  private var _isDragging = false
+  private var _isPresentingSettings = false
+  private var _touchesStartPointY: CGFloat?
   
   override func viewDidLoad() {
     super.viewDidLoad()
     
     view.bringSubview(toFront: searchBar)
-    blurView.effect = UIBlurEffect(style: .dark)
-    blurView.alpha = 0
     blurView.isUserInteractionEnabled = false
     view.insertSubview(blurView, belowSubview: searchBar)
     
     tableView.estimatedRowHeight = 130.0
     tableView.rowHeight = UITableViewAutomaticDimension
+    
+    _previewEffectView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dismissMenu)))
   }
   
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    tableView.transform = CGAffineTransform(scaleX: 0.67, y: 0.67)
+    tableView.alpha = 0
+    
     dateTopConstraint.constant -= 100
     view.layoutIfNeeded()
   }
@@ -68,8 +79,14 @@ class LockScreenViewController: UIViewController {
   }
   
   @IBAction func presentSettings(_ sender: Any? = nil) {
-    //present the view controller
+    _presentTransition.auxAnimations = blurAnimations(true)
+    _presentTransition.auxAnimationsCancel = blurAnimations(false)
+    
     settingsController = storyboard?.instantiateViewController(withIdentifier: "SettingsViewController") as! SettingsViewController
+    settingsController.transitioningDelegate = self
+    settingsController.didDismiss = { [unowned self] in
+      self.toggleBlur(false)
+    }
     present(settingsController, animated: true, completion: nil)
   }
   
@@ -79,13 +96,13 @@ class LockScreenViewController: UIViewController {
                            controlPoint2: CGPoint(x: 0.96, y: 0.87),
                            animations: blurAnimations(blurred))
       .startAnimation()
- 
+    
     /*
-    // Spring
-    let spring = UISpringTimingParameters(mass: 10, stiffness: 5, damping: 30, initialVelocity: CGVector(dx: 1, dy: 0.2))
-    let animator = UIViewPropertyAnimator(duration: 0.55, timingParameters: spring)
-    animator.addAnimations(blurAnimations(blurred))
-    animator.startAnimation()
+     // Spring
+     let spring = UISpringTimingParameters(mass: 10, stiffness: 5, damping: 30, initialVelocity: CGVector(dx: 1, dy: 0.2))
+     let animator = UIViewPropertyAnimator(duration: 0.55, timingParameters: spring)
+     animator.addAnimations(blurAnimations(blurred))
+     animator.startAnimation()
      */
   }
   
@@ -93,13 +110,93 @@ class LockScreenViewController: UIViewController {
     return {
       self.blurView.effect = blurred ? UIBlurEffect(style: .dark) : nil
       self.tableView.transform = blurred ? CGAffineTransform(scaleX: 0.75, y: 0.75) : .identity
-      self.blurView.alpha = blurred ? 0.33 : 1.0
+      self.tableView.alpha = blurred ? 0.33 : 1.0
     }
   }
 }
 
 // MARK : - WidgetsOwnerProtocol
-extension LockScreenViewController: WidgetsOwnerProtocol { }
+extension LockScreenViewController: WidgetsOwnerProtocol {
+  func updatePreview(percent: CGFloat) {
+    _previewAnimator?.fractionComplete = max(0.01, min(0.99, percent))
+  }
+  
+  func finishPreview() {
+    _previewAnimator?.stopAnimation(false)
+    _previewAnimator?.finishAnimation(at: .end)
+    _previewAnimator = nil
+    AnimatorFactory.complete(view: _previewEffectView).startAnimation()
+    
+    blurView.effect = UIBlurEffect(style: .dark)
+    blurView.isUserInteractionEnabled = true
+    blurView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dismissMenu)))
+  }
+  
+  func cancelPreview() {
+    guard let previewAnimator = _previewAnimator else { return }
+    previewAnimator.isReversed = true
+    previewAnimator.startAnimation()
+    previewAnimator.addCompletion {
+      guard .start == $0 else { return }
+      self._previewView?.removeFromSuperview()
+      self._previewEffectView.removeFromSuperview()
+    }
+  }
+  
+  func startPreview(for forView: UIView) {
+    _previewView?.removeFromSuperview()
+    _previewView = forView.snapshotView(afterScreenUpdates: false)
+    view.insertSubview(_previewView!, aboveSubview: blurView)
+    _previewView?.frame = forView.convert(forView.bounds, to: view)
+    _startFrame = _previewView?.frame
+    addEffectView(below: _previewView!)
+    _previewAnimator = AnimatorFactory.grow(view: _previewEffectView, blurView: blurView)
+  }
+  
+  func addEffectView(below forView: UIView) {
+    _previewEffectView.removeFromSuperview()
+    _previewEffectView.frame = forView.frame
+    
+    forView.superview?.insertSubview(_previewEffectView, belowSubview: forView)
+  }
+  
+  @objc func dismissMenu() {
+    let reset = AnimatorFactory.reset(frame: _startFrame!, view: _previewEffectView, blurView: blurView)
+    reset.addCompletion { [unowned self] _ in
+      self._previewEffectView.removeFromSuperview()
+      self._previewView?.removeFromSuperview()
+      self.blurView.isUserInteractionEnabled = false
+    }
+    reset.startAnimation()
+  }
+  
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard _presentTransition.wantsInteractiveStart == false,
+      _presentTransition.animator != nil,
+      let touch = touches.first else { return }
+    
+    _touchesStartPointY = touch.location(in: view).y
+    _presentTransition.interruptTransition()
+  }
+  
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let startY = _touchesStartPointY,
+      let touch = touches.first else { return }
+    
+    let currentPoint = touch.location(in: view).y
+    if currentPoint < startY - 40 {
+      _touchesStartPointY = nil
+      _presentTransition.animator?.addCompletion { [unowned self] _ in
+        self.blurView.effect = nil
+      }
+      _presentTransition.cancel()
+    } else if currentPoint > startY + 40 {
+      _touchesStartPointY = nil
+      _presentTransition.finish()
+    }
+  }
+  
+}
 
 // MARK : - UITableViewDataSource
 extension LockScreenViewController: UITableViewDataSource {
@@ -112,6 +209,7 @@ extension LockScreenViewController: UITableViewDataSource {
     if indexPath.row == 1 {
       let cell = tableView.dequeueReusableCell(withIdentifier: "Footer") as! FooterCell
       cell.didPressEdit = {[unowned self] in
+        self._presentTransition.wantsInteractiveStart = false
         self.presentSettings()
       }
       return cell
@@ -139,5 +237,47 @@ extension LockScreenViewController: UISearchBarDelegate {
     if searchText.isEmpty {
       searchBar.resignFirstResponder()
     }
+  }
+}
+
+extension LockScreenViewController: UIViewControllerTransitioningDelegate {
+  func animationController(forPresented presented: UIViewController, presenting: UIViewController, source: UIViewController) -> UIViewControllerAnimatedTransitioning? {
+    return _presentTransition
+  }
+  
+  func interactionControllerForPresentation(using animator: UIViewControllerAnimatedTransitioning) -> UIViewControllerInteractiveTransitioning? {
+    return _presentTransition
+  }
+}
+
+extension LockScreenViewController: UIScrollViewDelegate {
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    _isDragging = true
+  }
+  
+  func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    guard _isDragging else { return }
+    
+    if !_isPresentingSettings && scrollView.contentOffset.y < -30 {
+      _isPresentingSettings = true
+      _presentTransition.wantsInteractiveStart = true
+      presentSettings()
+      return
+    }
+    
+    if _isPresentingSettings {
+      let progress = max(0.0, min(1.0, ((-scrollView.contentOffset.y) - 30) / 90.0))
+      _presentTransition.update(progress)
+    }
+  }
+  
+  func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+    let progress = max(0.0, min(1.0, ((-scrollView.contentOffset.y) - 30) / 90.0))
+    
+    progress > 0.5 ?
+      _presentTransition.finish() : _presentTransition.cancel()
+    
+    _isPresentingSettings = false
+    _isDragging = false
   }
 }
